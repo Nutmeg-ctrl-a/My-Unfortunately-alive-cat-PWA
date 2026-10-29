@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a1f">
+<title>Мой к сожалению живой кот</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  :root{
+    --bg:#1a1a1f; --panel:#24242c; --accent:#e8b04b; --danger:#e05a5a;
+    --ok:#6fcf7f; --text:#e6e6ea; --muted:#8a8a96;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    overscroll-behavior:none; user-select:none;}
+  #app{max-width:480px;margin:0 auto;padding:12px 14px 24px;display:flex;
+    flex-direction:column;gap:12px;min-height:100%;}
+  h1{font-size:16px;margin:0;font-weight:600;letter-spacing:.3px;color:var(--muted);}
+
+  .cat-scene{position:relative;background:var(--panel);border-radius:18px;
+    height:230px;overflow:hidden;display:grid;place-items:center;}
+  .cat{font-size:110px;line-height:1;transition:transform .25s ease;filter:drop-shadow(0 6px 14px #0008);}
+  .cat.idle{animation:breathe 2.4s ease-in-out infinite;}
+  .cat.angry{transform:scale(1.06) rotate(-2deg);}
+  .cat.scary{animation:twitch .18s steps(2) infinite;}
+  @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
+  @keyframes twitch{0%{transform:translateX(0) rotate(0)}50%{transform:translateX(2px) rotate(1deg)}100%{transform:translateX(-2px) rotate(-1deg)}}
+
+  .thought{position:absolute;bottom:12px;left:12px;right:12px;
+    font-size:13px;color:var(--muted);text-align:center;font-style:italic;
+    min-height:18px;transition:opacity .3s;}
+
+  .bars{display:flex;flex-direction:column;gap:8px;}
+  .bar{background:var(--panel);border-radius:12px;padding:8px 10px;}
+  .bar .label{display:flex;justify-content:space-between;font-size:12px;
+    color:var(--muted);margin-bottom:6px;}
+  .track{height:8px;background:#0006;border-radius:6px;overflow:hidden;}
+  .fill{height:100%;width:100%;border-radius:6px;transition:width .4s ease,background .4s;}
+  .fill.ok{background:var(--ok);} .fill.warn{background:var(--accent);} .fill.bad{background:var(--danger);}
+
+  .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  button{font:inherit;color:var(--text);background:var(--panel);border:1px solid #ffffff10;
+    border-radius:14px;padding:12px;cursor:pointer;transition:transform .1s,background .2s;
+    font-size:14px;min-height:52px;}
+  button:active{transform:scale(.97);background:#2e2e38;}
+  button.primary{background:var(--accent);color:#1a1a1f;border-color:transparent;font-weight:600;}
+  button.danger{border-color:#e05a5a55;color:#ffb3b3;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+
+  .log{background:var(--panel);border-radius:14px;padding:10px 12px;
+    font-size:12.5px;color:var(--muted);max-height:130px;overflow-y:auto;
+    display:flex;flex-direction:column-reverse;gap:4px;}
+  .log p{margin:0;}
+
+  .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(120%);
+    background:#000c;color:#fff;padding:10px 16px;border-radius:12px;font-size:13px;
+    transition:transform .35s cubic-bezier(.2,.9,.3,1.4);z-index:10;white-space:nowrap;}
+  .toast.show{transform:translateX(-50%) translateY(0);}
+
+  .overlay{position:fixed;inset:0;background:#000d;display:grid;place-items:center;
+    padding:24px;z-index:20;opacity:0;pointer-events:none;transition:opacity .4s;}
+  .overlay.show{opacity:1;pointer-events:auto;}
+  .overlay .card{background:var(--panel);border-radius:18px;padding:24px;max-width:340px;
+    text-align:center;display:flex;flex-direction:column;gap:14px;}
+  .overlay h2{margin:0;font-size:20px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>МОЙ К СОЖАЛЕНИЮ ЖИВОЙ КОТ</h1>
+
+  <div class="cat-scene">
+    <div class="cat idle" id="cat">🐈</div>
+    <div class="thought" id="thought"></div>
+  </div>
+
+  <div class="bars">
+    <div class="bar">
+      <div class="label"><span>Живучесть кота</span><span id="hp-val">100%</span></div>
+      <div class="track"><div class="fill ok" id="hp"></div></div>
+    </div>
+    <div class="bar">
+      <div class="label"><span>Странность</span><span id="weird-val">0%</span></div>
+      <div class="track"><div class="fill ok" id="weird"></div></div>
+    </div>
+    <div class="bar">
+      <div class="label"><span>Ваше терпение</span><span id="pat-val">100%</span></div>
+      <div class="track"><div class="fill ok" id="pat"></div></div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="primary" id="feed">🍽 Накормить</button>
+    <button id="clean">🧹 Лоток</button>
+    <button id="play">🎾 Поиграть</button>
+    <button class="danger" id="escape">🚪 Избавиться</button>
+  </div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="overlay" id="overlay">
+  <div class="card">
+    <h2 id="ov-title"></h2>
+    <p id="ov-text" style="margin:0;color:var(--muted);font-size:14px;"></p>
+    <button class="primary" id="ov-btn">Заново</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const state = {
+    hp: 100, weird: 0, patience: 100,
+    alive: true, tickMs: 4000, attempts: 0,
+  };
+  const thoughts = [
+    "Ты снова не купил тот корм. Я запомнил.",
+    "Я не голоден. Я просто хочу, чтобы ты страдал.",
+    "Спи спокойно. Я посмотрю, как ты спишь.",
+    "Твой диван теперь мой.",
+    "Мне нравится, когда ты нервничаешь.",
+    "Я слышал, как ты думал обо мне плохо.",
+    "Этот лоток... недостаточно чистый. Опять.",
+    "...",
+  ];
+
+  // --- сохранение ---
+  const SAVE_KEY = 'alive-cat-v1';
+  function save(){
+    try{ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }catch(e){}
+  }
+  function load(){
+    try{
+      const raw = localStorage.getItem(SAVE_KEY);
+      if(raw) Object.assign(state, JSON.parse(raw));
+    }catch(e){}
+  }
+
+  // --- UI ---
+  function setBar(el, valEl, val){
+    val = Math.max(0, Math.min(100, val));
+    el.style.width = val + '%';
+    el.className = 'fill ' + (val > 60 ? 'ok' : val > 30 ? 'warn' : 'bad');
+    valEl.textContent = Math.round(val) + '%';
+  }
+  function render(){
+    setBar($('hp'), $('hp-val'), state.hp);
+    setBar($('weird'), $('weird-val'), state.weird);
+    setBar($('pat'), $('pat-val'), state.patience);
+
+    const cat = $('cat');
+    cat.className = 'cat';
+    if(!state.alive) cat.style.filter = 'grayscale(1) opacity(.35)';
+    else if(state.weird > 70) cat.classList.add('scary');
+    else if(state.patience < 40 || state.hp < 40) cat.classList.add('angry');
+    else cat.classList.add('idle');
+
+    $('feed').disabled = !state.alive;
+    $('clean').disabled = !state.alive;
+    $('play').disabled = !state.alive;
+    $('escape').disabled = !state.alive;
+    save();
+  }
+  function log(msg){
+    const p = document.createElement('p');
+    p.textContent = '• ' + msg;
+    $('log').appendChild(p);
+    while($('log').children.length > 40) $('log').firstChild.remove();
+  }
+  let toastTimer;
+  function toast(msg){
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+  }
+  function setThought(){ $('thought').textContent = state.alive ? thoughts[Math.floor(Math.random()*thoughts.length)] : ''; }
+
+  // --- игровая логика ---
+  function clamp(v){ return Math.max(0, Math.min(100, v)); }
+
+  function feed(){
+    if(!state.alive) return;
+    state.hp = clamp(state.hp + 22);
+    state.weird = clamp(state.weird - 4);
+    state.patience = clamp(state.patience - 2);
+    log('Кот поел. Он смотрел на тебя, пока ел.');
+    render();
+  }
+  function clean(){
+    if(!state.alive) return;
+    state.patience = clamp(state.patience + 10);
+    state.weird = clamp(state.weird - 6);
+    state.hp = clamp(state.hp + 4);
+    log('Лоток чист. На 10 минут стало легче.');
+    render();
+  }
+  function play(){
+    if(!state.alive) return;
+    state.hp = clamp(state.hp + 10);
+    state.weird = clamp(state.weird + 8);
+    state.patience = clamp(state.patience - 6);
+    log('Вы поиграли. Кот был слишком... заинтересован.');
+    render();
+  }
+  function escape(){
+    if(!state.alive) return;
+    state.attempts++;
+    const outcomes = [
+      { text: 'Дверь заклинило. Кот уже внутри.', hp:0, weird:+10, pat:-12 },
+      { text: 'Сосед отказался. Он видел его глаза.', hp:0, weird:+8, pat:-10 },
+      { text: 'Вы вынесли его в переноске. Через минуту он был на кухне.', hp:0, weird:+15, pat:-15 },
+      { text: 'Шкаф открылся сам. Внутри — только шерсть.', hp:+5, weird:+5, pat:-8 },
+      { text: 'Вы оставили его у подъезда. Он вернулся с запиской: «Не надо».', hp:+3, weird:+12, pat:-14 },
+    ];
+    const o = outcomes[Math.floor(Math.random()*outcomes.length)];
+    state.hp = clamp(state.hp + o.hp);
+    state.weird = clamp(state.weird + o.weird);
+    state.patience = clamp(state.patience + o.pat);
+    log(o.text);
+    toast(o.text);
+    render();
+  }
+
+  // тик: время идет — кот живет, странность растет, терпение падает
+  function tick(){
+    if(!state.alive) return;
+    state.hp = clamp(state.hp - 3);
+    state.weird = clamp(state.weird + 2);
+    state.patience = clamp(state.patience - 2.5);
+
+    // случайные события
+    if(Math.random() < 0.18){
+      const ev = [
+        ['Ваза разбилась. Сама.', 0, +6, -6],
+        ['Кот смотрит в стену уже 4 минуты.', 0, +4, -3],
+        ['Что-то упало в 3 часа ночи.', 0, +3, -8],
+        ['Кот принес тебе дохлую мышь. Он горд.', +2, +2, -2],
+        ['Кот мяукнул твоим голосом.', 0, +10, -10],
+      ][Math.floor(Math.random()*5)];
+      state.weird = clamp(state.weird + ev[2]);
+      state.patience = clamp(state.patience + ev[3]);
+      log(ev[0]);
+    }
+
+    checkEnd();
+    if(Math.random() < 0.3) setThought();
+    render();
+  }
+
+  function checkEnd(){
+    if(state.hp <= 0){
+      state.alive = false;
+      state.hp = 0;
+      showEnd('Кот умер', 'Ты сожалеешь. Почему-то — сожалеешь.');
+      return;
+    }
+    if(state.patience <= 0){
+      state.alive = false;
+      showEnd('Вы сломались', 'Кот остался. Вы — нет.');
+    }
+    if(state.weird >= 100){
+      state.alive = false;
+      showEnd('Он больше не кот', 'Он был жив. Теперь он — что-то другое.');
+    }
+  }
+
+  function showEnd(title, text){
+    $('ov-title').textContent = title;
+    $('ov-text').textContent = text;
+    $('overlay').classList.add('show');
+    log('— ' + title + ' —');
+  }
+
+  function reset(){
+    Object.assign(state, { hp:100, weird:0, patience:100, alive:true, attempts:0 });
+    $('overlay').classList.remove('show');
+    $('log').innerHTML = '';
+    log('Кот снова жив. К сожалению.');
+    render();
+  }
+
+  // --- события ---
+  $('feed').onclick = feed;
+  $('clean').onclick = clean;
+  $('play').onclick = play;
+  $('escape').onclick = escape;
+  $('ov-btn').onclick = reset;
+
+  // пауза при скрытой вкладке (иначе умирает за ночь)
+  let timer = null;
+  function startTimer(){ if(!timer) timer = setInterval(tick, state.tickMs); }
+  function stopTimer(){ clearInterval(timer); timer = null; }
+  document.addEventListener('visibilitychange', () => document.hidden ? stopTimer() : startTimer());
+
+  // service worker
+  if('serviceWorker' in navigator){
+    addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+  }
+
+  // --- старт ---
+  load();
+  if(state.alive){ log('Кот жив. К сожалению.'); }
+  else { log('Кот был жив. Вы помните.'); showEnd('Восстановление', 'Попробуем ещё раз?'); }
+  render();
+  setThought();
+  startTimer();
+})();
+</script>
+</body>
+</html>
